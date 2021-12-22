@@ -8,7 +8,12 @@
 
 #define RxBuf_SIZE 256
 #define MainBuf_SIZE 2048
-const char *SENSOR_API_HOST = "http://jwind-sensor-api.herokuapp.com/";
+
+#define API_HOST_PATH "http://jwind-sensor-api.herokuapp.com/"
+#define STATE_URL API_HOST_PATH "sensors/" UUID "/state"
+
+const char *SENSOR_API_HOST = API_HOST_PATH;
+const char *CONST_URL = STATE_URL;
 
 uint8_t RxBuf[RxBuf_SIZE];
 uint8_t MainBuf[MainBuf_SIZE];
