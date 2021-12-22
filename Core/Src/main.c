@@ -22,6 +22,7 @@
 #include "dma.h"
 #include "usart.h"
 #include "gpio.h"
+#include "sim800.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -90,7 +91,7 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  SIM800_Init(&huart2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -101,7 +102,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    HAL_Delay(500);
+    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }

@@ -37,7 +37,7 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+#define UUID "7794ca46-5333-44d4-b557-636af5244d6c"
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
