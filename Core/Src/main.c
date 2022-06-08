@@ -20,12 +20,19 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "dma.h"
+#include "i2c.h"
+#include "rtc.h"
 #include "usart.h"
 #include "gpio.h"
-#include "sim800.h"
+#include "stm32f1xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "sim800.h"
+#include <stdio.h>
+#include "ssd1306.h"
+#include "fonts.h"
+#include "printLCD.h"
 
 /* USER CODE END Includes */
 
@@ -36,6 +43,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+RTC_TimeTypeDef clkTime;
+RTC_DateTypeDef clkDate;
+uint8_t secondFlag = 1;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -90,19 +100,39 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART2_UART_Init();
+  MX_RTC_Init();
+  MX_I2C1_Init();
+  HAL_RTC_Init(&hrtc);
+  HAL_RTCEx_SetSecond_IT(&hrtc);
   /* USER CODE BEGIN 2 */
   SIM800_Init(&huart2);
+  initPrintLCD(&Font_11x18);
+  sendATCommand("AT");
+  uint8_t* lol = getResponse();
+  printStr(lol);
+  sendGETRequest("");
+
+  HAL_Delay(5000);
+//  SSD1306_UpdateScreen();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  clkDate.Date = 0x23;
+  clkDate.Month = 0x12;
+  clkDate.Year = 0x21;
+  clkTime.Seconds = 0x1;
+  clkTime.Minutes = 0x43;
+  clkTime.Hours = 0x1;
+  HAL_RTC_SetTime(&hrtc, &clkTime, RTC_FORMAT_BCD);
+  HAL_RTC_SetDate(&hrtc, &clkDate, RTC_FORMAT_BCD);
   while (1)
   {
+    secondTick();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -115,13 +145,15 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
@@ -143,10 +175,40 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
-/* USER CODE BEGIN 4 */
+void tick(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
+  char str[25] = {0};
 
+  sprintf(str, "%.2x:%.2x:%.2x", time->Hours, time->Minutes, time->Seconds);
+  clearLCD();
+  printlnStr(str);
+
+  sprintf(str, "%.2x/%.2x/20%.2x", date->Date, date->Month, date->Year);
+  printStr(str);
+
+  str[0] = 0;
+}
+
+void secondTick() {
+  if (secondFlag == 0) {
+    return;
+  }
+
+  HAL_RTC_GetTime(&hrtc, &clkTime, RTC_FORMAT_BCD);
+  HAL_RTC_GetDate(&hrtc, &clkDate, RTC_FORMAT_BCD);
+
+  tick(&clkDate, &clkTime);
+
+  secondFlag = 0;
+}
+/* USER CODE BEGIN 4 */
 /* USER CODE END 4 */
 
 /**

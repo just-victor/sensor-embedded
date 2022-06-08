@@ -48,10 +48,12 @@ extern "C" {
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
+extern uint8_t secondFlag;
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+void secondTick();
 
 /* USER CODE BEGIN EFP */
 

@@ -4,7 +4,9 @@
 
 #include <usart.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "sim800.h"
+#include "printLCD.h"
 
 #define RxBuf_SIZE 256
 #define MainBuf_SIZE 2048
@@ -31,6 +33,10 @@ void printError();
 uint8_t establishGPRS();
 uint8_t closeGPRS();
 uint8_t initHTTP();
+
+uint16_t parseResponse(uint16_t responseIndex);
+
+uint16_t waitAtResponse(const char *string);
 
 void SIM800_Init(UART_HandleTypeDef *uart) {
   sim800_uart = uart;
@@ -101,11 +107,17 @@ uint8_t executeATCommand() {
 
   await = 1;
   err = 0;
+  uint16_t delay = 100;
+  int i = 0;
 
   HAL_UARTEx_ReceiveToIdle_DMA(sim800_uart, RxBuf, RxBuf_SIZE);
   __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 
   while (await) {
+    if (i++ >= delay) {
+      printlnStr("ERROR");
+      return 0;
+    }
     HAL_Delay(10);
   }
 
@@ -113,24 +125,93 @@ uint8_t executeATCommand() {
 }
 
 uint8_t sendGETRequest(const char* url) {
-  uint8_t res = establishGPRS();
+  uint8_t isOk = establishGPRS();
+  if (!isOk) {
+    printlnStr("establishGPRS error");
+    closeGPRS();
+    return 0;
+  }
 
-  res = initHTTP();
-
+  isOk = initHTTP();
+  printStr("1");
+  if (!isOk) {
+    printlnStr("establishGPRS error");
+    return 0;
+  }
+  printStr("2");
   memset(MainBuf, 0, MainBuf_SIZE);
   partialATCommand("AT+HTTPPARA=\"URL\",\"");
   partialATCommand(SENSOR_API_HOST);
   partialATCommand(url);
   partialATCommand("\"");
-  res = executeATCommand();
+  isOk = executeATCommand();
+  if (!isOk) {
+    printlnStr("HTTPPARA error");
+    return 0;
+  }
+  printStr("3");
+  isOk = sendATCommand("AT+HTTPACTION=0");
+  if (!isOk) {
+    printlnStr("HTTPACTION error");
+    return 0;
+  }
+  printStr("4");
+  uint16_t responseIndex = waitAtResponse("+HTTPACTION: ");
+  if (responseIndex == 0 ) {
+    printlnStr("responseIndex 0");
+    return 0;
+  }
+  uint16_t bodySize = parseResponse(responseIndex);
+  printStr("5");
+  isOk = sendATCommand("AT+HTTPREAD");
+  if (isOk) {
+    printlnStr(getResponse());
+  }
 
-  res = sendATCommand("AT+HTTPACTION=0");
+  char* lol = getResponse();
+  if (lol[0] == 'sad') {
+    return 1;
+  }
 
-  getResponse();
+  if (bodySize == 123123) {
+    return 0;
+  }
+  char* atResponse = getResponse();
+//  cahr* body
 
-  res = closeGPRS();
+//  res = closeGPRS();
 
-  return res;
+  return responseIndex;
+}
+
+uint16_t waitAtResponse(const char *command) {
+  uint8_t len = strlen(command);
+  uint8_t flag = 0;
+  uint timeout = 0;
+  while (timeout < 5) {
+    uint16_t j = 0;
+    for (uint16_t i = 0; i < RxBuf_SIZE; ++i) {
+      for (; j < len; ++j) {
+        if (RxBuf[i + j] != command[j]) {
+          flag = 0;
+          break;
+        } else {
+          flag = 1;
+        }
+      }
+      if (flag == 1) {
+        return i + j;
+      }
+    }
+    timeout++;
+  }
+  return 0;
+}
+
+uint16_t parseResponse(uint16_t responseIndex) {
+  char* bodySize = &RxBuf[responseIndex+6];
+  uint16_t size = atoi(bodySize);
+  return size;
 }
 
 uint8_t establishGPRS() {
