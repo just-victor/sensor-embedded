@@ -24,7 +24,6 @@
 #include "rtc.h"
 #include "usart.h"
 #include "gpio.h"
-#include "stm32f1xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -102,9 +101,9 @@ int main(void)
   MX_USART2_UART_Init();
   MX_RTC_Init();
   MX_I2C1_Init();
+  /* USER CODE BEGIN 2 */
   HAL_RTC_Init(&hrtc);
   HAL_RTCEx_SetSecond_IT(&hrtc);
-  /* USER CODE BEGIN 2 */
   SIM800_Init(&huart2);
   initPrintLCD(&Font_11x18);
   sendATCommand("AT");
@@ -162,6 +161,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -183,6 +183,7 @@ void SystemClock_Config(void)
   }
 }
 
+/* USER CODE BEGIN 4 */
 void tick(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
   char str[25] = {0};
 
@@ -208,7 +209,6 @@ void secondTick() {
 
   secondFlag = 0;
 }
-/* USER CODE BEGIN 4 */
 /* USER CODE END 4 */
 
 /**
@@ -242,5 +242,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

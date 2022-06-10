@@ -53,7 +53,6 @@ extern uint8_t secondFlag;
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
-void secondTick();
 
 /* USER CODE BEGIN EFP */
 
@@ -61,7 +60,7 @@ void secondTick();
 
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN Private defines */
-
+void secondTick();
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
@@ -69,5 +68,3 @@ void secondTick();
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
