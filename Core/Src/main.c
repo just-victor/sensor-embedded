@@ -66,7 +66,25 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void setTime();
 
+void printUNum(uint8_t num) {
+  HAL_UART_Transmit(&huart1, num, sizeof(num), 100);
+};
+void printlnUNum(int num) {
+  char buffer[20] = {};
+  sprintf(buffer, "%d", num);
+  printlnUStr((uint8_t *) buffer);
+};
+
+void printUStr(uint8_t* str) {
+  HAL_UART_Transmit(&huart1, str, strlen(str), 100);
+};
+
+void printlnUStr(uint8_t* str) {
+  printUStr(str);
+  printUStr("\r\n");
+};
 /* USER CODE END 0 */
 
 /**
@@ -101,16 +119,19 @@ int main(void)
   MX_USART2_UART_Init();
   MX_RTC_Init();
   MX_I2C1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  printlnUStr("START.");
   HAL_RTC_Init(&hrtc);
   HAL_RTCEx_SetSecond_IT(&hrtc);
   SIM800_Init(&huart2);
-  initPrintLCD(&Font_11x18);
-  sendATCommand("AT");
-  uint8_t* lol = getResponse();
-  printStr(lol);
-  sendGETRequest("");
-
+//  initPrintLCD(&Font_11x18);
+  if (sendATCommand("AT")) {
+    setTime();
+  } else {
+    printlnUStr("ERROR");
+  }
+  printlnUStr("DELAY 5000");
   HAL_Delay(5000);
 //  SSD1306_UpdateScreen();
 
@@ -118,14 +139,6 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  clkDate.Date = 0x23;
-  clkDate.Month = 0x12;
-  clkDate.Year = 0x21;
-  clkTime.Seconds = 0x1;
-  clkTime.Minutes = 0x43;
-  clkTime.Hours = 0x1;
-  HAL_RTC_SetTime(&hrtc, &clkTime, RTC_FORMAT_BCD);
-  HAL_RTC_SetDate(&hrtc, &clkDate, RTC_FORMAT_BCD);
   while (1)
   {
     secondTick();
@@ -134,6 +147,28 @@ int main(void)
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
+}
+
+void setTime() {
+  uint8_t responseSize = sendGETRequest("");
+  if (responseSize == 0) {
+    termConnection();
+    return;
+  }
+  uint8_t* serverTime = getResponse();
+
+  printlnUStr(serverTime);
+
+  uint8_t i = 13;
+  clkDate.Date = atoi(&serverTime[i]);
+  clkDate.Month = atoi(&serverTime[i + 3]);
+  clkDate.Year = atoi(&serverTime[i + 6]) - 2000;
+  clkTime.Hours = atoi(&serverTime[i + 11]);
+  clkTime.Minutes = atoi(&serverTime[i + 14]);
+  clkTime.Seconds = atoi(&serverTime[i + 17]);
+  HAL_RTC_SetTime(&hrtc, &clkTime, RTC_FORMAT_BIN);
+  HAL_RTC_SetDate(&hrtc, &clkDate, RTC_FORMAT_BIN);
+  termConnection();
 }
 
 /**
@@ -187,12 +222,14 @@ void SystemClock_Config(void)
 void tick(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
   char str[25] = {0};
 
-  sprintf(str, "%.2x:%.2x:%.2x", time->Hours, time->Minutes, time->Seconds);
-  clearLCD();
-  printlnStr(str);
-
   sprintf(str, "%.2x/%.2x/20%.2x", date->Date, date->Month, date->Year);
-  printStr(str);
+//  clearLCD();
+//  printlnStr(str);
+  printUStr(str);
+  printUStr(" ");
+
+  sprintf(str, "%.2x:%.2x:%.2x", time->Hours, time->Minutes, time->Seconds);
+  printlnUStr(str);
 
   str[0] = 0;
 }
@@ -201,6 +238,7 @@ void secondTick() {
   if (secondFlag == 0) {
     return;
   }
+//  printUStr(".");
 
   HAL_RTC_GetTime(&hrtc, &clkTime, RTC_FORMAT_BCD);
   HAL_RTC_GetDate(&hrtc, &clkDate, RTC_FORMAT_BCD);

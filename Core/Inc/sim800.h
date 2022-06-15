@@ -10,6 +10,7 @@
 
 void SIM800_Init(UART_HandleTypeDef *sim800_uart);
 uint8_t sendATCommand(const char* str);
+uint8_t termConnection();
 uint8_t isOk();
 uint8_t* getResponse();
 uint8_t isError();

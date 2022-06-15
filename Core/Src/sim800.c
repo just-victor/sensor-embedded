@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "sim800.h"
+#include "main.h"
 #include "printLCD.h"
 
 #define RxBuf_SIZE 256
@@ -30,13 +31,15 @@ UART_HandleTypeDef *sim800_uart;
 
 uint8_t parseError(char *str, uint8_t* buf);
 void printError();
-uint8_t establishGPRS();
+uint8_t initGPRS();
 uint8_t closeGPRS();
 uint8_t initHTTP();
 
 uint16_t parseResponse(uint16_t responseIndex);
 
 uint16_t waitAtResponse(const char *string);
+
+uint8_t setUrl(const char *url);
 
 void SIM800_Init(UART_HandleTypeDef *uart) {
   sim800_uart = uart;
@@ -63,8 +66,8 @@ uint8_t parseError(char* str, uint8_t* buf) {
 
 void printError() {
 //  clearLCD();
-//  printlnStr("ERROR:");
-//  printlnStr((char*) getError());
+//  printlnUStr("ERROR:");
+//  printlnUStr((char*) getError());
   HAL_Delay(10000);
 }
 
@@ -99,6 +102,7 @@ uint8_t* getResponse() {
 }
 
 void partialATCommand(const char* str) {
+  printUStr(str);
   uint8_t i = strlen(str);
   HAL_UART_Transmit(sim800_uart, (uint8_t*) str , i , 100);
 }
@@ -115,80 +119,74 @@ uint8_t executeATCommand() {
 
   while (await) {
     if (i++ >= delay) {
-      printlnStr("ERROR");
+      printlnUStr("ERROR BY TIMEOUT");
       return 0;
     }
-    HAL_Delay(10);
+    HAL_Delay(1000);
+  }
+
+  if (isOk()) {
+    printlnUStr("OK");
   }
 
   return isOk();
 }
 
 uint8_t sendGETRequest(const char* url) {
-  uint8_t isOk = establishGPRS();
+  uint8_t isOk = initGPRS();
   if (!isOk) {
-    printlnStr("establishGPRS error");
-    closeGPRS();
+    termConnection();
     return 0;
   }
 
   isOk = initHTTP();
-  printStr("1");
+
   if (!isOk) {
-    printlnStr("establishGPRS error");
+    termConnection();
     return 0;
   }
-  printStr("2");
+
+  isOk = setUrl(url);
+  if (!isOk) {
+    termConnection();
+    return 0;
+  }
+
+  isOk = sendATCommand("AT+HTTPACTION=0");
+  if (!isOk) {
+    termConnection();
+    return 0;
+  }
+
+  uint16_t responseIndex = waitAtResponse("+HTTPACTION: ");
+  if (responseIndex == 0 ) {
+    printlnUStr("responseIndex 0");
+    termConnection();
+    return 0;
+  }
+
+  return sendATCommand("AT+HTTPREAD");
+}
+
+uint8_t setUrl(const char *url) {
   memset(MainBuf, 0, MainBuf_SIZE);
+
   partialATCommand("AT+HTTPPARA=\"URL\",\"");
   partialATCommand(SENSOR_API_HOST);
   partialATCommand(url);
   partialATCommand("\"");
-  isOk = executeATCommand();
-  if (!isOk) {
-    printlnStr("HTTPPARA error");
-    return 0;
-  }
-  printStr("3");
-  isOk = sendATCommand("AT+HTTPACTION=0");
-  if (!isOk) {
-    printlnStr("HTTPACTION error");
-    return 0;
-  }
-  printStr("4");
-  uint16_t responseIndex = waitAtResponse("+HTTPACTION: ");
-  if (responseIndex == 0 ) {
-    printlnStr("responseIndex 0");
-    return 0;
-  }
-  uint16_t bodySize = parseResponse(responseIndex);
-  printStr("5");
-  isOk = sendATCommand("AT+HTTPREAD");
-  if (isOk) {
-    printlnStr(getResponse());
-  }
+  printUStr(": ");
 
-  char* lol = getResponse();
-  if (lol[0] == 'sad') {
-    return 1;
-  }
-
-  if (bodySize == 123123) {
-    return 0;
-  }
-  char* atResponse = getResponse();
-//  cahr* body
-
-//  res = closeGPRS();
-
-  return responseIndex;
+  return executeATCommand();
 }
 
 uint16_t waitAtResponse(const char *command) {
   uint8_t len = strlen(command);
   uint8_t flag = 0;
-  uint timeout = 0;
-  while (timeout < 5) {
+  uint attempts = 0;
+  while (attempts < 60) {
+    printUStr("ATTEMPT ");
+    HAL_Delay(300);
     uint16_t j = 0;
     for (uint16_t i = 0; i < RxBuf_SIZE; ++i) {
       for (; j < len; ++j) {
@@ -203,26 +201,32 @@ uint16_t waitAtResponse(const char *command) {
         return i + j;
       }
     }
-    timeout++;
+    attempts++;
   }
   return 0;
 }
 
-uint16_t parseResponse(uint16_t responseIndex) {
-  char* bodySize = &RxBuf[responseIndex+6];
-  uint16_t size = atoi(bodySize);
-  return size;
-}
-
-uint8_t establishGPRS() {
+uint8_t initGPRS() {
   return sendATCommand("AT+SAPBR=1,1");
 }
 
 uint8_t closeGPRS() {
   return sendATCommand("AT+SAPBR=0,1");
 }
+
 uint8_t initHTTP() {
   return sendATCommand("AT+HTTPINIT");
+}
+
+uint8_t termHTTP() {
+  return sendATCommand("AT+HTTPTERM");
+}
+
+uint8_t termConnection() {
+  uint8_t res;
+  res = termHTTP();
+  res = closeGPRS() & res;
+  return res;
 }
 
 uint8_t sendATCommand(const char* str) {
@@ -230,6 +234,7 @@ uint8_t sendATCommand(const char* str) {
 
   partialATCommand(str);
 
+  printUStr(": ");
   return executeATCommand();
 }
 
@@ -237,9 +242,11 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
   if (huart->Instance != USART2) {
     return;
   }
+//  printlnUStr("UART CALLBACK START");
 
   oldPos = newPos;
-
+//  printUStr("RX: ");
+//  printlnUStr(RxBuf);
   err = parseError("+CME ERROR: ", RxBuf);
   if (err) {
     await = 0;
@@ -249,7 +256,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
   if (oldPos + Size > MainBuf_SIZE) {
     oldPos = 0;
     await = 0;
-//    printlnStr("OutOfMemory");
+//    printlnUStr("OutOfMemory");
 //    printStr("oldPos ");
 //    printlnInt(oldPos);
 //    printStr("Size ");
@@ -268,4 +275,5 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
       err = 0;
     }
   }
+//  printlnUStr("UART CALLBACK END");
 }
