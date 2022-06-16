@@ -15,6 +15,7 @@
 #define API_HOST_PATH "http://jwind-sensor-api.herokuapp.com/"
 #define STATE_URL API_HOST_PATH "sensors/" UUID "/state"
 
+const uint8_t ATTEMPTS_50 = 200;
 const char *SENSOR_API_HOST = API_HOST_PATH;
 const char *CONST_URL = STATE_URL;
 
@@ -111,18 +112,17 @@ uint8_t executeATCommand() {
 
   await = 1;
   err = 0;
-  uint16_t delay = 100;
   int i = 0;
 
   HAL_UARTEx_ReceiveToIdle_DMA(sim800_uart, RxBuf, RxBuf_SIZE);
   __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
 
   while (await) {
-    if (i++ >= delay) {
+    if (i++ >= ATTEMPTS_50) {
       printlnUStr("ERROR BY TIMEOUT");
       return 0;
     }
-    HAL_Delay(1000);
+    HAL_Delay(50);
   }
 
   if (isOk()) {
@@ -184,9 +184,9 @@ uint16_t waitAtResponse(const char *command) {
   uint8_t len = strlen(command);
   uint8_t flag = 0;
   uint attempts = 0;
-  while (attempts < 60) {
+  while (attempts < ATTEMPTS_50) {
     printUStr("ATTEMPT ");
-    HAL_Delay(300);
+    HAL_Delay(50);
     uint16_t j = 0;
     for (uint16_t i = 0; i < RxBuf_SIZE; ++i) {
       for (; j < len; ++j) {

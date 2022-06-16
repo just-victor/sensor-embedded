@@ -68,6 +68,11 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 void setTime();
 
+void printTime(const RTC_DateTypeDef *date, const RTC_TimeTypeDef *time);
+
+uint8_t isTimeOk = 0;
+uint16_t timers[10];
+
 void printUNum(uint8_t num) {
   HAL_UART_Transmit(&huart1, num, sizeof(num), 100);
 };
@@ -169,6 +174,7 @@ void setTime() {
   HAL_RTC_SetTime(&hrtc, &clkTime, RTC_FORMAT_BIN);
   HAL_RTC_SetDate(&hrtc, &clkDate, RTC_FORMAT_BIN);
   termConnection();
+  isTimeOk = 1;
 }
 
 /**
@@ -219,7 +225,37 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint8_t timeHasCome(uint8_t timerId, uint8_t minutesDelay) {
+  if (timers[timerId] == 0) {
+    timers[timerId] = minutesDelay;
+    return 1;
+  }
+  return 0;
+}
+
+void decreaseTimers(RTC_TimeTypeDef *time) {
+  if (time->Seconds != 0) {
+    return;
+  }
+
+  for (int i = 0; i < 10; ++i) {
+    if (timers[i] > 0) {
+      timers[i] = timers[i] - 1;
+    }
+  }
+}
+
 void tick(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
+  printTime(date, time);
+  decreaseTimers(time);
+  if (timeHasCome(1, 1)) {
+    if (!isTimeOk) {
+      setTime();
+    }
+  }
+}
+
+void printTime(const RTC_DateTypeDef *date, const RTC_TimeTypeDef *time) {
   char str[25] = {0};
 
   sprintf(str, "%.2x/%.2x/20%.2x", date->Date, date->Month, date->Year);
@@ -238,7 +274,6 @@ void secondTick() {
   if (secondFlag == 0) {
     return;
   }
-//  printUStr(".");
 
   HAL_RTC_GetTime(&hrtc, &clkTime, RTC_FORMAT_BCD);
   HAL_RTC_GetDate(&hrtc, &clkDate, RTC_FORMAT_BCD);
