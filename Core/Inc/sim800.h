@@ -16,5 +16,7 @@ uint8_t* getResponse();
 uint8_t isError();
 uint8_t* getError();
 uint8_t sendGETRequest(const char* url);
+uint8_t sendState();
+uint8_t sendPostRequest(const char* url, const char* body);
 
 #endif //ANEMOMETR_SIM800_H

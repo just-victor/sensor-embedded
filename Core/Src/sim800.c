@@ -13,11 +13,10 @@
 #define MainBuf_SIZE 2048
 
 #define API_HOST_PATH "http://jwind-sensor-api.herokuapp.com/"
-#define STATE_URL API_HOST_PATH "sensors/" UUID "/state"
+#define STATE_URL "sensors/" UUID "/state"
 
 const uint8_t ATTEMPTS_50 = 200;
 const char *SENSOR_API_HOST = API_HOST_PATH;
-const char *CONST_URL = STATE_URL;
 
 uint8_t RxBuf[RxBuf_SIZE];
 uint8_t MainBuf[MainBuf_SIZE];
@@ -41,6 +40,8 @@ uint16_t parseResponse(uint16_t responseIndex);
 uint16_t waitAtResponse(const char *string);
 
 uint8_t setUrl(const char *url);
+
+uint8_t sendHTTPData(const uint16_t bodySize);
 
 void SIM800_Init(UART_HandleTypeDef *uart) {
   sim800_uart = uart;
@@ -132,21 +133,76 @@ uint8_t executeATCommand() {
   return isOk();
 }
 
+uint8_t prepareConnection(const char* url) {
+  if (!initGPRS()) {
+    return 0;
+  }
+
+  if (!initHTTP()) {
+    return 0;
+  }
+
+  if (!setUrl(url)) {
+    return 0;
+  }
+
+  return 1;
+}
+
+uint8_t sendState() {
+  sendPostRequest(STATE_URL, "{}");
+
+  printlnUStr(getResponse());
+
+  termConnection();
+}
+
+uint8_t sendPostRequest(const char* url, const char* body) {
+  uint8_t isOk = prepareConnection(url);
+  if (!isOk) {
+    termConnection();
+    return 0;
+  }
+  sendATCommand("AT+HTTPPARA=CONTENT,application/json");
+  sendHTTPData(strlen(body));
+
+  sendATCommand(body);
+
+  isOk = sendATCommand("AT+HTTPACTION=1");
+  if (!isOk) {
+    termConnection();
+    return 0;
+  }
+
+  uint16_t responseIndex = waitAtResponse("+HTTPACTION: ");
+  if (responseIndex == 0 ) {
+    printlnUStr("responseIndex 0");
+    termConnection();
+    return 0;
+  }
+
+  return sendATCommand("AT+HTTPREAD");
+}
+
+uint8_t sendHTTPData(const uint16_t bodySize) {
+  memset(MainBuf, 0, MainBuf_SIZE);
+  memset(RxBuf, 0, RxBuf_SIZE);
+
+  char string[10];
+  itoa(bodySize, string, 10);
+
+  partialATCommand("AT+HTTPDATA=");
+  partialATCommand(string);
+  partialATCommand(",1000");
+
+  HAL_UART_Transmit(sim800_uart, (uint8_t*) "\r\n" , 2 , 10);
+  uint8_t isOk = waitAtResponse("DOWNLOAD");
+  printlnUStr("OK");
+  return isOk;
+}
+
 uint8_t sendGETRequest(const char* url) {
-  uint8_t isOk = initGPRS();
-  if (!isOk) {
-    termConnection();
-    return 0;
-  }
-
-  isOk = initHTTP();
-
-  if (!isOk) {
-    termConnection();
-    return 0;
-  }
-
-  isOk = setUrl(url);
+  uint8_t isOk = prepareConnection(url);
   if (!isOk) {
     termConnection();
     return 0;
@@ -185,7 +241,7 @@ uint16_t waitAtResponse(const char *command) {
   uint8_t flag = 0;
   uint attempts = 0;
   while (attempts < ATTEMPTS_50) {
-    printUStr("ATTEMPT ");
+    printUStr("AT ");
     HAL_Delay(50);
     uint16_t j = 0;
     for (uint16_t i = 0; i < RxBuf_SIZE; ++i) {
@@ -231,6 +287,7 @@ uint8_t termConnection() {
 
 uint8_t sendATCommand(const char* str) {
   memset(MainBuf, 0, MainBuf_SIZE);
+  memset(RxBuf, 0, RxBuf_SIZE);
 
   partialATCommand(str);
 

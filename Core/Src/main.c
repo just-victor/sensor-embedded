@@ -67,7 +67,6 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void setTime();
-
 void printTime(const RTC_DateTypeDef *date, const RTC_TimeTypeDef *time);
 
 uint8_t isTimeOk = 0;
@@ -233,7 +232,7 @@ uint8_t timeHasCome(uint8_t timerId, uint8_t minutesDelay) {
   return 0;
 }
 
-void decreaseTimers(RTC_TimeTypeDef *time) {
+void decreaseTimers(const RTC_TimeTypeDef *time) {
   if (time->Seconds != 0) {
     return;
   }
@@ -247,7 +246,7 @@ void decreaseTimers(RTC_TimeTypeDef *time) {
 
 void tick(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
   printTime(date, time);
-  decreaseTimers(time);
+
   if (timeHasCome(1, 1)) {
     if (!isTimeOk) {
       setTime();
@@ -277,7 +276,7 @@ void secondTick() {
 
   HAL_RTC_GetTime(&hrtc, &clkTime, RTC_FORMAT_BCD);
   HAL_RTC_GetDate(&hrtc, &clkDate, RTC_FORMAT_BCD);
-
+  decreaseTimers(&clkTime);
   tick(&clkDate, &clkTime);
 
   secondFlag = 0;

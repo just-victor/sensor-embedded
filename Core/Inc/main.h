@@ -61,6 +61,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN Private defines */
 void secondTick();
+void decreaseTimers(const RTC_TimeTypeDef *time);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
